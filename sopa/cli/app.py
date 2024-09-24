@@ -151,6 +151,36 @@ def crop(
 
 
 @app.command()
+def automatic_crop(
+    sdata_path: str = typer.Argument(help=SDATA_HELPER),
+    channels: list[str] = typer.Option(
+        None,
+        help="List of channel names to be used. Optional if there are already only 1 or 3 channels",
+    ),
+    scale_factor: float = typer.Option(10, help="Resize the image by this value (high value for a lower memory usage)"),
+    sigma: float = typer.Option(240, help="Sigma of the Gaussian filter"),
+    expand: int = typer.Option(480, help="Expand the polygon by this value"),
+    disk_size: int = typer.Option(240, help="Disk size for the morphological closing"),
+    threshold_size: float = typer.Option(6400, help="Minimum size of the polygon"),
+):
+    """Crop an image based on an automatic rectangular bounding box selection"""
+    from sopa.io.standardize import read_zarr_standardized
+    from sopa.utils.polygon_crop import automatic_polygon_selection
+
+    sdata = read_zarr_standardized(sdata_path)
+
+    automatic_polygon_selection(
+        sdata=sdata,
+        channels=None if channels is None else list(channels),
+        scale_factor=scale_factor,
+        sigma=sigma,
+        expand=expand,
+        disk_size=disk_size,
+        threshold_size=threshold_size,
+    )
+
+
+@app.command()
 def aggregate(
     sdata_path: str = typer.Argument(help=SDATA_HELPER),
     gene_column: str = typer.Option(
