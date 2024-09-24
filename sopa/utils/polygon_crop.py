@@ -86,7 +86,10 @@ def _bbox_multiregion(
 
     # Calculate the combined bounding box
     if regions:
-        log.info(f"Found {len(regions)} regions. Combining their bounding boxes.")
+        if len(regions) > 1:
+            log.info(f"Found {len(regions)} regions. Combining their bounding boxes.")
+        else:
+            log.info("Found 1 region.")
         x_min = min(region.bbox[1] for region in regions) * scale_factor
         y_min = min(region.bbox[0] for region in regions) * scale_factor
         x_max = max(region.bbox[3] for region in regions) * scale_factor
@@ -203,10 +206,10 @@ def automatic_polygon_selection(
     sdata: SpatialData,
     scale_factor: float = 10,
     channels: list[str] | None = None,
-    sigma: float = 30,
-    expand: int = 60,
-    disk_size: int = 30,
-    threshold_size: float = 100,
+    sigma: float = 240,
+    expand: int = 480,
+    disk_size: int = 240,
+    threshold_size: float = 6400,
 ):
     """Automatically identify a rectangular region of interest.
 
@@ -225,8 +228,14 @@ def automatic_polygon_selection(
 
     image_key, image = _prepare(sdata, channels=channels, scale_factor=scale_factor)
 
+    # compute the bounding box for all regions, make sure to adjust the parameters for the `scale_factor`
     polygon = _bbox_multiregion(
-        image, scale_factor=scale_factor, sigma=sigma, disk_size=disk_size, threshold_size=threshold_size, expand=expand
+        image,
+        scale_factor=scale_factor,
+        sigma=sigma / scale_factor,
+        disk_size=int(disk_size / scale_factor),
+        threshold_size=threshold_size / (scale_factor**2),
+        expand=int(expand / scale_factor),
     )
 
     geo_df = gpd.GeoDataFrame(geometry=[polygon])
