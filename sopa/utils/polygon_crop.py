@@ -7,7 +7,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import zarr
 from matplotlib.widgets import PolygonSelector
+from scipy import ndimage
 from shapely.geometry import Polygon
+from skimage import measure
+from skimage.filters import gaussian, threshold_otsu
+from skimage.filters.rank import median
+from skimage.morphology import disk
+from skimage.segmentation import expand_labels
 from spatialdata import SpatialData
 from spatialdata.models import ShapesModel
 from spatialdata.transformations import get_transformation
@@ -44,6 +50,62 @@ def _prepare(sdata: SpatialData, channels: list[str], scale_factor: float):
 
     log.info(f"Resizing image by a factor of {scale_factor}")
     return image_key, resize(image, scale_factor).compute()
+
+
+def _bbox_multiregion(
+    img: np.array,
+    scale_factor: float,
+    sigma: float,
+    disk_size: float,
+    threshold_size: float,
+    expand: int,
+) -> Polygon:
+
+    # Take the max along the channel axis
+    img = img.max(axis=-1)
+
+    # Apply gaussian smoothing and thresholding
+    img = gaussian(img, sigma=sigma)
+    thr = threshold_otsu(img)
+    img = (img > thr).astype(int)
+
+    # Fill holes in binary image and apply median filter to remove outliers
+    img = ndimage.binary_fill_holes(img).astype("uint8")
+    img = median(img, disk(disk_size))
+
+    # Label connected components (regions) and expland the regions
+    img = measure.label(img)
+    img = expand_labels(img, distance=expand)
+
+    # Extract region properties
+    regions = measure.regionprops(img)
+
+    # Filter regions by size if specified
+    if threshold_size is not None:
+        regions = [region for region in regions if region.area > threshold_size]
+
+    # Calculate the combined bounding box
+    if regions:
+        log.info(f"Found {len(regions)} regions. Combining their bounding boxes.")
+        x_min = min(region.bbox[1] for region in regions) * scale_factor
+        y_min = min(region.bbox[0] for region in regions) * scale_factor
+        x_max = max(region.bbox[3] for region in regions) * scale_factor
+        y_max = max(region.bbox[2] for region in regions) * scale_factor
+
+    else:
+        log.warning("No region found. Using the whole image as the bounding box.")
+        x_min, y_min = 0, 0
+        x_max = img.shape[1] * scale_factor
+        y_max = img.shape[0] * scale_factor
+
+    return Polygon(
+        [
+            (x_min, y_min),
+            (x_min, y_max),
+            (x_max, y_max),
+            (x_max, y_min),
+        ]
+    )
 
 
 class _Selector:
@@ -131,6 +193,47 @@ def polygon_selection(
 
     geo_df = ShapesModel.parse(geo_df, transformations=get_transformation(sdata[image_key], get_all=True).copy())
     sdata.shapes[ROI.KEY] = geo_df
+    if sdata.is_backed():
+        sdata.write_element(ROI.KEY, overwrite=True)
+
+    log.info(f"Polygon saved in sdata['{ROI.KEY}']")
+
+
+def automatic_polygon_selection(
+    sdata: SpatialData,
+    scale_factor: float = 10,
+    channels: list[str] | None = None,
+    sigma: float = 30,
+    expand: int = 60,
+    disk_size: int = 30,
+    threshold_size: float = 100,
+):
+    """Automatically identify a rectangular region of interest.
+
+    Works well for images which have a clear background and foreground, e.g. organoids.
+
+    Args:
+        sdata: A `SpatialData` object
+        scale_factor: Resize the image by this value (high value for a lower memory usage)
+        channels: List of channel names to be used. Optional if there are already only 1 or 3 channels.
+        sigma: Standard deviation for gaussian smoothing
+        expand: Distance to expand the regions
+        disk_size: Radius of the disk used in median filtering
+        threshold_size: Minimum size of regions
+
+    """
+
+    image_key, image = _prepare(sdata, channels=channels, scale_factor=scale_factor)
+
+    polygon = _bbox_multiregion(
+        image, scale_factor=scale_factor, sigma=sigma, disk_size=disk_size, threshold_size=threshold_size, expand=expand
+    )
+
+    geo_df = gpd.GeoDataFrame(geometry=[polygon])
+
+    geo_df = ShapesModel.parse(geo_df, transformations=get_transformation(sdata[image_key], get_all=True).copy())
+    sdata.shapes[ROI.KEY] = geo_df
+
     if sdata.is_backed():
         sdata.write_element(ROI.KEY, overwrite=True)
 
