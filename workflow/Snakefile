@@ -7,10 +7,10 @@ localrules: all
 
 rule all:
     input:
-        paths.annotations if args.annotate else [],
-        paths.explorer_experiment,
-        paths.explorer_image,
-        paths.report,
+        expand(paths.annotations, region=config["regions"]) if args.annotate else [],
+        expand(paths.explorer_experiment, region=config["regions"]),
+        expand(paths.explorer_image, region=config["regions"]),
+        expand(paths.report, region=config["regions"])
     shell:
         """
         echo 🎉 Successfully run sopa
@@ -19,9 +19,12 @@ rule all:
         echo → Open the result in the explorer: 'open {paths.explorer_experiment}'
         """
 
+def format_path(template, wildcards):
+    return template.format(**wildcards)
+
 rule to_spatialdata:
     input:
-        paths.data_path if config["read"]["technology"] != "uniform" else [],
+        lambda wildcards: format_path(paths.data_path, wildcards) if config["read"]["technology"] != "uniform" else [],
     output:
         paths.sdata_zgroup if paths.data_path else [],
     conda:
@@ -29,10 +32,11 @@ rule to_spatialdata:
     resources:
         mem_mb=128_000,
     params:
-        args_reader = str(args['read'])
+        args_reader = str(args['read']),
+        sdata_path = lambda wildcards: format_path(str(paths.sdata_path), wildcards),
     shell:
         """
-        sopa read {paths.data_path} --sdata-path {paths.sdata_path} {params.args_reader}
+        sopa read {input} --sdata-path {params.sdata_path} {params.args_reader}
         """
 
 checkpoint patchify_cellpose:
