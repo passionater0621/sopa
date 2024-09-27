@@ -35,9 +35,26 @@ rule to_spatialdata:
         sopa read {paths.data_path} --sdata-path {paths.sdata_path} {params.args_reader}
         """
 
+rule automatic_crop:
+    input:
+        paths.sdata_zgroup,
+    output:
+        directory(paths.roi)
+    conda:
+        "sopa"
+    resources:
+        mem_mb=128_000,
+    params:
+        args_crop = str(args["automatic_crop"]),
+    shell:
+        """
+        sopa automatic-crop {paths.sdata_path} {params.args_crop}
+        """
+
 checkpoint patchify_cellpose:
     input:
         paths.sdata_zgroup,
+        paths.roi if args.automatic_crop else [],
     output:
         patches_file = paths.smk_patches_file_image,
         patches = touch(paths.smk_patches),
@@ -54,6 +71,7 @@ checkpoint patchify_baysor:
     input:
         paths.sdata_zgroup,
         paths.smk_cellpose_boundaries if args.cellpose else [],
+        paths.roi if args.automatic_crop else [],
     output:
         patches_file = paths.smk_patches_file_baysor,
         smk_baysor_temp_dir = directory(paths.smk_baysor_temp_dir),
@@ -72,6 +90,7 @@ checkpoint patchify_comseg:
     input:
         paths.sdata_zgroup,
         paths.smk_cellpose_boundaries if args.cellpose else [],
+        paths.roi if args.automatic_crop else [],
     output:
         patches_file = paths.smk_patches_file_comseg,
         smk_comseg_temp_dir = directory(paths.smk_comseg_temp_dir),

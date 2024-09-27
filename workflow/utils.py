@@ -50,6 +50,9 @@ class WorkflowPaths:
         self.images_dir = self.sdata_path / "images"
         self.table_dir = self.sdata_path / "tables"
 
+        # region of interest
+        self.roi = self.shapes_dir / "region_of_interest"
+
         # sdata.shapes
         self.baysor_boundaries = self.shapes_dir / "baysor_boundaries"
         self.cellpose_boundaries = self.shapes_dir / "cellpose_boundaries"
@@ -120,6 +123,9 @@ class Args:
     def __init__(self, paths: WorkflowPaths, config: dict):
         self.paths = paths
         self.config = config
+
+        # whether to use automatic cropping
+        self.automatic_crop = "automatic_crop" in self.config
 
         # whether to run segmentation
         self.segmentation = "segmentation" in self.config
