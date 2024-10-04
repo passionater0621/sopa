@@ -41,7 +41,7 @@ rule to_spatialdata:
 
 rule automatic_crop:
     input:
-        paths.sdata_zgroup,
+        lambda wildcards: format_path(paths.sdata_zgroup, wildcards),
     output:
         directory(paths.roi)
     conda:
@@ -50,31 +50,16 @@ rule automatic_crop:
         mem_mb=128_000,
     params:
         args_crop = str(args["automatic_crop"]),
+        sdata_path = lambda wildcards: format_path(paths.sdata_path, wildcards),
     shell:
         """
-        sopa automatic-crop {paths.sdata_path} {params.args_crop}
-        """
-
-rule automatic_crop:
-    input:
-        paths.sdata_zgroup,
-    output:
-        directory(paths.roi)
-    conda:
-        "sopa"
-    resources:
-        mem_mb=128_000,
-    params:
-        args_crop = str(args["automatic_crop"]),
-    shell:
-        """
-        sopa automatic-crop {paths.sdata_path} {params.args_crop}
+        sopa automatic-crop {params.sdata_path} {params.args_crop}
         """
 
 checkpoint patchify_cellpose:
     input:
         lambda wildcards: format_path(paths.sdata_zgroup, wildcards),
-        paths.roi if args.automatic_crop else [],
+        lambda wildcards: format_path(paths.roi, wildcards) if args.automatic_crop else [],
     output:
         patches_file = paths.smk_patches_file_image,
         patches = touch(paths.smk_patches),
@@ -92,7 +77,7 @@ checkpoint patchify_baysor:
     input:
         lambda wildcards: format_path(paths.sdata_zgroup, wildcards),
         lambda wildcards: format_path(paths.smk_cellpose_boundaries, wildcards) if args.cellpose else [],
-        paths.roi if args.automatic_crop else [],
+        lambda wildcards: format_path(paths.roi, wildcards) if args.automatic_crop else [],
     output:
         patches_file = paths.smk_patches_file_baysor,
         smk_baysor_temp_dir = directory(paths.smk_baysor_temp_dir),
@@ -112,7 +97,7 @@ checkpoint patchify_comseg:
     input:
         lambda wildcards: format_path(paths.sdata_zgroup, wildcards),
         lambda wildcards: format_path(paths.smk_cellpose_boundaries, wildcards) if args.cellpose else [],
-        paths.roi if args.automatic_crop else [],
+        lambda wildcards: format_path(paths.roi, wildcards) if args.automatic_crop else [],
     output:
         patches_file = paths.smk_patches_file_comseg,
         smk_comseg_temp_dir = directory(paths.smk_comseg_temp_dir),
