@@ -81,7 +81,7 @@ class WorkflowPaths:
 
         # user-friendly output files
         self.explorer_directory = self.sdata_path.with_suffix(".explorer")
-        self.explorer_directory.mkdir(parents=True, exist_ok=True)
+        # self.explorer_directory.mkdir(parents=True, exist_ok=True)
         self.explorer_experiment = self.explorer_directory / "experiment.xenium"
         self.explorer_image = self.explorer_directory / "morphology.ome.tif"
         self.report = self.explorer_directory / "analysis_summary.html"
