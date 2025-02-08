@@ -20,7 +20,6 @@ def test_average_channels_aligned():
     cell_size = 4
     cell_start = [(0, 0), (6, 2), (9, 3)]
 
-    # One cell is on the first block, one is overlapping on both blocks, and one is on the last block
     cells = [box(x, y, x + cell_size - 1, y + cell_size - 1) for x, y in cell_start]
 
     means = aggregation._average_channels_aligned(xarr, cells)
